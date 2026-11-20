@@ -5,9 +5,15 @@
 **Your remaining Claude Code usage limit right on the Windows taskbar — just like the battery percentage.**
 
 <p>
+  <img src="taskbar.png" alt="Claude Limit Tray on the Windows 11 taskbar next to the battery icon" />
+  <br />
+  <sub>Actual size on the Windows 11 taskbar, right next to the system tray and battery icon.</sub>
+</p>
+
+<p>
   <img src="preview.png" width="568" alt="Claude Limit Tray states: 87%, 25%, 5% and error" />
   <br />
-  <sub>Enlarged preview. On the taskbar it is the size of the battery icon.</sub>
+  <sub>Enlarged preview of all 4 states (normal, low, critical, offline/error).</sub>
 </p>
 
 <p>
