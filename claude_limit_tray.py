@@ -164,7 +164,7 @@ def font(size):
             return ImageFont.load_default()
 
 
-def render(text, pct, height, bg, base=CLAUDE_ORANGE, rows=MASCOT, palette=None):
+def render(text, pct, height, bg, base=CLAUDE_ORANGE, rows=MASCOT, palette=None, tint_all=False):
     """Like the battery: 20x12 icon scaled to DPI, 4 px gap, 12 px percentage text; vertically centered.
     In `rows`, '#' is drawn in the level color and other letters come from `palette` (char -> RGB)."""
     dpi = max(1.0, height / 48)  # smooth scaling (also for 125% and 150% DPI)
@@ -179,6 +179,8 @@ def render(text, pct, height, bg, base=CLAUDE_ORANGE, rows=MASCOT, palette=None)
     oy = (height - mh) // 2  # like the battery icon: rows 18-29 on a 48 px taskbar
     color = level_color(pct, base)
     colors = dict(palette or {}, **{"#": color})
+    if tint_all and color != base:  # low / offline: the whole multicolor logo takes the warning color
+        colors = dict.fromkeys(colors, color)
     mascot = Image.new("RGBA", (w0, h0), (0, 0, 0, 0))
     md = ImageDraw.Draw(mascot)
     for y, row in enumerate(rows):
@@ -194,14 +196,14 @@ def render(text, pct, height, bg, base=CLAUDE_ORANGE, rows=MASCOT, palette=None)
 
 # ---------- settings / autostart ----------
 
-def load_settings(app):
+def load_settings(app, limits=LIMITS):
     try:
         s = json.loads(settings_path(app).read_text(encoding="utf-8"))
-        if s.get("limit") in LIMITS:
+        if s.get("limit") in limits:
             return s
     except Exception:
         pass
-    return {"limit": "five_hour"}
+    return {"limit": next(iter(limits))}
 
 
 def save_settings(app, s):
@@ -306,7 +308,8 @@ def fullscreen_app_active():
 
 class App:
     def __init__(self, name="Claude", app=APP, fetch=None, color=CLAUDE_ORANGE, anchors=(), script=None,
-                 mascot=MASCOT, palette=None):
+                 mascot=MASCOT, palette=None, limits=LIMITS, tint_all=False):
+        self.limits, self.tint_all = limits, tint_all
         self.mascot, self.palette = mascot, palette
         self.name, self.app, self.color, self.anchors = name, app, color, tuple(anchors)
         self.fetch, self.script = fetch or fetch_usage, script
@@ -314,7 +317,7 @@ class App:
             ctypes.windll.shcore.SetProcessDpiAwareness(2)
         except Exception:
             pass
-        self.settings = load_settings(app)
+        self.settings = load_settings(app, limits)
         self.data, self.error = None, None
         self.wake = threading.Event()
         self.closing = False
@@ -335,7 +338,7 @@ class App:
         self.limit_var = tk.StringVar(value=self.settings["limit"])
         self.auto_var = tk.BooleanVar(value=startup_lnk(app).exists())
         self.menu = tk.Menu(self.root, tearoff=0)
-        for k, name in LIMITS.items():
+        for k, name in self.limits.items():
             self.menu.add_radiobutton(label=name, value=k, variable=self.limit_var, command=self.pick)
         self.menu.add_separator()
         self.menu.add_command(label="Refresh now", command=self.wake.set)
@@ -368,7 +371,7 @@ class App:
 
     def tip_text(self):
         lines = []
-        for k, name in LIMITS.items():
+        for k, name in self.limits.items():
             r = remaining(self.data, k)
             if r is not None:
                 lines.append(f"{name}: {r}% left  ·  {reset_text(self.data, k)}")
@@ -409,7 +412,7 @@ class App:
         else:
             text = f"{pct}%" if pct is not None else "–"
         self.bg = taskbar_color(left, top)
-        img = render(text, pct, height, self.bg, self.color, self.mascot, self.palette)
+        img = render(text, pct, height, self.bg, self.color, self.mascot, self.palette, self.tint_all)
         # background (taskbar color) -> transparent; text edges stay anti-aliased against the taskbar color
         rgba = img.convert("RGBA")
         key_rgb = tuple(int(self.key[i:i + 2], 16) for i in (1, 3, 5))
