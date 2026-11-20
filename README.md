@@ -5,7 +5,7 @@ Pokazuje na pasku zadań Windows, obok zasobnika, **ile zostało limitu Claude'a
 - Do wyboru limit **5-godzinny** albo **tygodniowy** (prawy przycisk → menu)
 - Najechanie myszką: oba limity i czas do resetu
 - Kolor ludka: pomarańczowy → żółty (< 30%) → czerwony (< 10%)
-- Chowa się, gdy gra albo film jest na pełnym ekranie
+- Chowa się, gdy gra albo film jest na pełnym ekranie, gdy automatycznie ukrywany pasek jest schowany oraz gdy pasek jest z boku lub u góry ekranu (obsługiwany jest tylko pasek na dole głównego monitora)
 - Opcja „Uruchamiaj z Windowsem”
 
 ## Wymagania
@@ -26,6 +26,8 @@ pythonw claude_limit_tray.py
 ## Bezpieczeństwo i prywatność
 
 - Aplikacja **tylko odczytuje** token z `%USERPROFILE%\.claude\.credentials.json` (plik Claude Code). Nie zapisuje go, nie loguje i nie odświeża.
+- Aplikacja przedstawia się serwerowi własną nazwą (`claude-limit-tray`), nie podszywa się pod Claude Code, i nie uruchamia żadnych zewnętrznych programów (poza PowerShellem przy włączaniu autostartu).
+- Sprawdzanie limitu **nie zużywa** Twojego limitu Claude'a. To tylko odczyt licznika, a nie rozmowa z modelem.
 - Token jest wysyłany **wyłącznie** do `https://api.anthropic.com/api/oauth/usage` (HTTPS z weryfikacją certyfikatu). Żadnych innych serwerów, żadnej telemetrii.
 - Żeby dobrać kolor do paska zadań, aplikacja co kilka sekund odczytuje kolor paska kilku pikseli tuż obok siebie. Ten fragment ekranu nie jest nigdzie zapisywany ani wysyłany.
 - Lokalnie zapisuje tylko `%APPDATA%\ClaudeLimitTray\settings.json` (wybrany limit) i, jeśli włączysz autostart, skrót w folderze Autostart.

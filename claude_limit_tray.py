@@ -31,29 +31,8 @@ NO_WINDOW = 0x08000000
 GAP = 8  # odstep od zasobnika w px
 # ---------- dane ----------
 
-def find_claude_exe():
-    """claude.exe tylko z absolutnych katalogow PATH - bez szukania w biezacym folderze i bez powloki."""
-    for d in os.environ.get("PATH", "").split(os.pathsep):
-        p = Path(d) / "claude.exe"
-        if d and Path(d).is_absolute() and p.is_file():
-            return p
-    return None
-
-
-def claude_version():
-    exe = find_claude_exe()
-    if exe:
-        try:
-            out = subprocess.run([str(exe), "--version"], capture_output=True, text=True,
-                                 timeout=15, creationflags=NO_WINDOW).stdout.split()
-            if out and all(c.isdigit() or c == "." for c in out[0]):
-                return out[0]
-        except Exception:
-            pass
-    return "2.1.0"
-
-
-UA = f"claude-code/{claude_version()}"
+# Uczciwie przedstawiamy sie wlasna nazwa (nie podszywamy sie pod Claude Code).
+UA = "claude-limit-tray/1.1 (+https://github.com/jakmot12/claude-limit-tray)"
 
 
 def fetch_usage():
@@ -229,12 +208,26 @@ def win_rect(h):
     return r.left, r.top, r.right, r.bottom
 
 
+class APPBARDATA(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("hWnd", wintypes.HWND), ("uCallbackMessage", wintypes.UINT),
+                ("uEdge", wintypes.UINT), ("rc", wintypes.RECT), ("lParam", wintypes.LPARAM)]
+
+
+ABM_GETTASKBARPOS, ABE_BOTTOM = 5, 3
+
+
 def tray_geometry():
-    """(lewa krawedz zasobnika, gora paska, wysokosc paska) albo None."""
+    """(lewa krawedz zasobnika, gora paska, wysokosc paska) albo None, gdy widget ma byc schowany:
+    pasek nie na dole ekranu (bok/gora) albo automatycznie ukryty pasek jest akurat schowany."""
     tb = user32.FindWindowW("Shell_TrayWnd", None)
     if not tb:
         return None
+    abd = APPBARDATA(cbSize=ctypes.sizeof(APPBARDATA))
+    if ctypes.windll.shell32.SHAppBarMessage(ABM_GETTASKBARPOS, ctypes.byref(abd)) and abd.uEdge != ABE_BOTTOM:
+        return None
     l, t, r, b = win_rect(tb)
+    if b - t <= 0 or t > user32.GetSystemMetrics(1) - (b - t) // 2:
+        return None  # auto-ukrywanie: pasek zjechal w dol poza ekran
     tn = user32.FindWindowExW(tb, None, "TrayNotifyWnd", None)
     left = win_rect(tn)[0] if tn else r - 300
     return left, t, b - t
@@ -327,8 +320,9 @@ class App:
 
     def redraw(self):
         geo = tray_geometry()
-        left, top, height = geo if geo else (self.root.winfo_screenwidth() - 300,
-                                             self.root.winfo_screenheight() - 48, 48)
+        if not geo:
+            return  # pasek schowany / nie na dole - keep_on_taskbar ukrywa widget
+        left, top, height = geo
         pct = remaining(self.data, self.settings["limit"])
         if self.data is None:
             text = "?" if self.error else "…"
@@ -345,14 +339,16 @@ class App:
         self.root.geometry(f"{img.width}x{height}+{left - img.width - GAP}+{top}")
 
     def keep_on_taskbar(self):
-        """Co sekunde: pozycja przy zasobniku, na wierzchu paska, schowany przy pelnym ekranie."""
-        if fullscreen_app_active():
+        """Co sekunde: pozycja przy zasobniku, na wierzchu paska; schowany przy pelnym ekranie,
+        schowanym (auto-ukrywanym) pasku albo pasku z boku / u gory - nigdy nie wisi nad ekranem."""
+        geo = tray_geometry()
+        if fullscreen_app_active() or not geo:
+            self.hide_tip()
             self.root.withdraw()
         else:
             self.root.deiconify()
             self.root.attributes("-topmost", True)
             self.root.lift()
-            geo = tray_geometry()
             self._ticks = getattr(self, "_ticks", 0) + 1
             moved = geo and geo != getattr(self, "_geo", None)
             if moved or (geo and self._ticks % 5 == 0 and
