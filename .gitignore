@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+build/
+dist/
+*.spec
+# nigdy nie commituj danych logowania
+.credentials.json
+*.lnk
