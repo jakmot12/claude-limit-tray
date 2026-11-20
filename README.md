@@ -7,7 +7,7 @@
 <p>
   <img src="preview.png" alt="Claude Limit Tray states: 87%, 25%, 5% and error" />
   <br />
-  <sub>Shown at 4× zoom: on the taskbar it is the size of the battery icon.</sub>
+  <sub>Rendered at 4× scale. On the taskbar it is the size of the battery icon.</sub>
 </p>
 
 <p>
