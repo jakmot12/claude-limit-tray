@@ -5,7 +5,9 @@
 **Your remaining Claude Code usage limit right on the Windows taskbar — just like the battery percentage.**
 
 <p>
-  <img src="preview.png" alt="Claude Limit Tray on the Windows taskbar" />
+  <img src="preview.png" alt="Claude Limit Tray states: 87%, 25%, 5% and error" />
+  <br />
+  <sub>Shown at 4× zoom: on the taskbar it is the size of the battery icon.</sub>
 </p>
 
 <p>
@@ -22,9 +24,9 @@ A tiny, single-file Windows taskbar widget that displays a pixel-art Claude masc
 
 ## Features
 
-- **Battery-style taskbar indicator** — crisp pixel-art mascot + remaining percentage rendered with `Segoe UI Variable` and smooth DPI scaling (100%–200%).
+- **Battery-style taskbar indicator** — crisp pixel-art mascot + remaining percentage rendered with `Segoe UI Variable` (plain `Segoe UI` on Windows 10), sized like the battery icon (tested at 100% display scaling; other scales are approximated).
 - **5-hour & 7-day limits** — switch which window is shown on the taskbar via the right-click menu; hover to see **both limits** and exact reset countdowns.
-- **At-a-glance color coding** — Claude orange (`≥ 30%`) → yellow (`< 30%`) → red (`< 10%`).
+- **At-a-glance color coding** — Claude orange (`≥ 30%`) → yellow (`< 30%`) → red (`< 10%`); gray with `?` when there is no data (offline or sign-in expired: open Claude Code to refresh it).
 - **Stays out of your way** — automatically hides during fullscreen games/videos, when an auto-hidden taskbar collapses, or when the taskbar isn't at the bottom of the primary monitor.
 - **Start with Windows** — optional one-click Startup shortcut in the context menu, plus single-instance protection so you never launch duplicates.
 
@@ -35,6 +37,8 @@ A tiny, single-file Windows taskbar widget that displays a pixel-art Claude masc
 | **Hover** | Show both 5-hour and 7-day remaining limits with reset times |
 | **Left-click** | Refresh usage immediately |
 | **Right-click** | Switch limit (`5h` / `7d`), refresh, toggle **Start with Windows**, or quit |
+
+> The app's menu and tooltip are currently in **Polish** (`5 godzin` = 5 hours, `Tydzień` = week, `Odśwież teraz` = refresh now, `Uruchamiaj z Windowsem` = start with Windows, `Zamknij` = quit).
 
 ## Requirements
 
