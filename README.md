@@ -2,6 +2,8 @@
 
 Pokazuje na pasku zadań Windows, obok zasobnika, **ile zostało limitu Claude'a**: tak jak procent baterii. Mały pikselowy ludek i obok procent.
 
+![Claude Limit Tray na pasku zadań](preview.png)
+
 - Do wyboru limit **5-godzinny** albo **tygodniowy** (prawy przycisk → menu)
 - Najechanie myszką: oba limity i czas do resetu
 - Kolor ludka: pomarańczowy → żółty (< 30%) → czerwony (< 10%)
