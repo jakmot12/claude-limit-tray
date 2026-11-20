@@ -7,13 +7,13 @@
 <p>
   <img src="taskbar.png" alt="Claude Limit Tray on the Windows 11 taskbar next to the battery icon" />
   <br />
-  <sub>Actual size on the Windows 11 taskbar, right next to the system tray and battery icon.</sub>
+  <sub>On the Windows 11 taskbar, right next to the system tray and battery icon.</sub>
 </p>
 
 <p>
-  <img src="preview.png" width="568" alt="Claude Limit Tray states: 87%, 25%, 5% and error" />
+  <img src="preview.png" alt="Claude Limit Tray states: 87%, 25%, 5% and offline" />
   <br />
-  <sub>Enlarged preview of all 4 states (normal, low, critical, offline/error).</sub>
+  <sub>All 4 states at actual taskbar size (rendered directly by the app).</sub>
 </p>
 
 <p>
