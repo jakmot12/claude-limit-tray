@@ -169,8 +169,8 @@ def render(text, pct, height, bg):
     if (mw, mh) != (20, 12):
         mascot = mascot.resize((mw, mh), Image.Resampling.NEAREST)
     img.paste(mascot, (0, oy), mascot)
-    fg = (24, 24, 24) if is_light(bg) else (255, 255, 255)
-    d.text((tx - tl, height // 2 + round(4 * dpi)), text, font=f, fill=fg, anchor="ls")
+    # zawsze bialy - tak jak procent baterii na pasku (swiadomy wybor autora, nie zalezy od jasnosci paska)
+    d.text((tx - tl, height // 2 + round(4 * dpi)), text, font=f, fill=(255, 255, 255), anchor="ls")
     return img
 
 # ---------- ustawienia / autostart ----------
