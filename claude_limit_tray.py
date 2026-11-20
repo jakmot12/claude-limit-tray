@@ -81,6 +81,10 @@ def reset_text(data, key):
     secs = int((t - datetime.now(timezone.utc)).total_seconds())
     if secs <= 0:
         return "reset teraz"
+    if secs < 60:
+        return "reset za <1m"
+    if secs < 3600:
+        return f"reset za {secs // 60}m"
     if secs < 86400:
         return f"reset za {secs // 3600}h {secs % 3600 // 60}m"
     lt = t.astimezone()
@@ -195,6 +199,8 @@ def set_autostart(on):
         STARTUP_LNK.unlink(missing_ok=True)
         return
     pyw = Path(sys.executable).with_name("pythonw.exe")
+    if not pyw.exists():
+        pyw = Path(sys.executable)
     script = Path(__file__).resolve()
     # sciezki ida przez zmienne srodowiskowe, nie sa wklejane w tekst polecenia (brak wstrzykniecia)
     env = dict(os.environ, CLT_LNK=str(STARTUP_LNK), CLT_PYW=str(pyw),
@@ -307,12 +313,17 @@ class App:
         self.menu.add_command(label="Zamknij", command=self.close)
 
         self.tip = None
-        self.label.bind("<Button-3>", lambda e: self.menu.tk_popup(e.x_root, e.y_root))
+        self.label.bind("<Button-3>", self.show_menu)
         self.label.bind("<Button-1>", lambda e: self.wake.set())
         self.label.bind("<Enter>", self.show_tip)
         self.label.bind("<Leave>", self.hide_tip)
 
     # --- UI ---
+    def show_menu(self, e):
+        self.hide_tip()
+        self.root.focus_force()
+        self.menu.tk_popup(e.x_root, e.y_root)
+
     def close(self):
         self.closing = True
         self.wake.set()
