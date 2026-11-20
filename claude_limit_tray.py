@@ -22,8 +22,15 @@ APP = "ClaudeLimitTray"
 USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 CLAUDE_DIR = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
 CREDS = CLAUDE_DIR / ".credentials.json"
-SETTINGS = Path(os.environ["APPDATA"]) / APP / "settings.json"
-STARTUP_LNK = Path(os.environ["APPDATA"]) / r"Microsoft\Windows\Start Menu\Programs\Startup" / f"{APP}.lnk"
+
+
+def settings_path(app):
+    return Path(os.environ["APPDATA"]) / app / "settings.json"
+
+
+def startup_lnk(app):
+    return Path(os.environ["APPDATA"]) / r"Microsoft\Windows\Start Menu\Programs\Startup" / f"{app}.lnk"
+
 
 POLL_OK, POLL_ERR, MAX_BACKOFF = 180, 30, 900
 LIMITS = {"five_hour": "5 hours", "seven_day": "Week"}
@@ -111,14 +118,17 @@ MASCOT = [
 ]
 
 
-def level_color(pct):
+CLAUDE_ORANGE = (217, 119, 87)
+
+
+def level_color(pct, base=CLAUDE_ORANGE):
     if pct is None:
         return (140, 140, 140)
     if pct < 10:
         return (217, 69, 59)
     if pct < 30:
         return (232, 176, 74)
-    return (217, 119, 87)  # Claude orange
+    return base
 
 
 def taskbar_color(tray_left, top):
@@ -154,10 +164,12 @@ def font(size):
             return ImageFont.load_default()
 
 
-def render(text, pct, height, bg):
-    """Like the battery: 20x12 icon scaled to DPI, 4 px gap, 12 px percentage text; vertically centered."""
+def render(text, pct, height, bg, base=CLAUDE_ORANGE, rows=MASCOT, palette=None):
+    """Like the battery: 20x12 icon scaled to DPI, 4 px gap, 12 px percentage text; vertically centered.
+    In `rows`, '#' is drawn in the level color and other letters come from `palette` (char -> RGB)."""
     dpi = max(1.0, height / 48)  # smooth scaling (also for 125% and 150% DPI)
-    mw, mh = round(20 * dpi), round(12 * dpi)
+    w0, h0 = len(rows[0]), len(rows)
+    mw, mh = round(w0 * dpi), round(h0 * dpi)
     f = font(max(10, round(12 * dpi)))
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     tl, _, tr, _ = probe.textbbox((0, 0), text, font=f, anchor="ls")
@@ -165,14 +177,15 @@ def render(text, pct, height, bg):
     img = Image.new("RGB", (tx + (tr - tl) + 1, height), bg)
     d = ImageDraw.Draw(img)
     oy = (height - mh) // 2  # like the battery icon: rows 18-29 on a 48 px taskbar
-    color = level_color(pct)
-    mascot = Image.new("RGBA", (20, 12), (0, 0, 0, 0))
+    color = level_color(pct, base)
+    colors = dict(palette or {}, **{"#": color})
+    mascot = Image.new("RGBA", (w0, h0), (0, 0, 0, 0))
     md = ImageDraw.Draw(mascot)
-    for y, row in enumerate(MASCOT):
+    for y, row in enumerate(rows):
         for x, ch in enumerate(row):
-            if ch == "#":
-                md.point((x, y), fill=color + (255,))
-    if (mw, mh) != (20, 12):
+            if ch in colors:
+                md.point((x, y), fill=colors[ch] + (255,))
+    if (mw, mh) != (w0, h0):
         mascot = mascot.resize((mw, mh), Image.Resampling.NEAREST)
     img.paste(mascot, (0, oy), mascot)
     # always white, like the battery percentage (intentional design choice, independent of taskbar brightness)
@@ -181,9 +194,9 @@ def render(text, pct, height, bg):
 
 # ---------- settings / autostart ----------
 
-def load_settings():
+def load_settings(app):
     try:
-        s = json.loads(SETTINGS.read_text(encoding="utf-8"))
+        s = json.loads(settings_path(app).read_text(encoding="utf-8"))
         if s.get("limit") in LIMITS:
             return s
     except Exception:
@@ -191,21 +204,21 @@ def load_settings():
     return {"limit": "five_hour"}
 
 
-def save_settings(s):
-    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    SETTINGS.write_text(json.dumps(s), encoding="utf-8")
+def save_settings(app, s):
+    settings_path(app).parent.mkdir(parents=True, exist_ok=True)
+    settings_path(app).write_text(json.dumps(s), encoding="utf-8")
 
 
-def set_autostart(on):
+def set_autostart(on, app=APP, script=None):
     if not on:
-        STARTUP_LNK.unlink(missing_ok=True)
+        startup_lnk(app).unlink(missing_ok=True)
         return
     pyw = Path(sys.executable).with_name("pythonw.exe")
     if not pyw.exists():
         pyw = Path(sys.executable)
-    script = Path(__file__).resolve()
+    script = Path(script or __file__).resolve()
     # paths are passed via environment variables, never pasted into the command text (no injection)
-    env = dict(os.environ, CLT_LNK=str(STARTUP_LNK), CLT_PYW=str(pyw),
+    env = dict(os.environ, CLT_LNK=str(startup_lnk(app)), CLT_PYW=str(pyw),
                CLT_ARGS=f'"{script}"', CLT_DIR=str(script.parent))
     ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:CLT_LNK);"
           "$s.TargetPath=$env:CLT_PYW;$s.Arguments=$env:CLT_ARGS;"
@@ -224,9 +237,9 @@ kernel32.CloseHandle.restype = wintypes.BOOL
 ERROR_ALREADY_EXISTS = 183
 
 
-def acquire_single_instance():
+def acquire_single_instance(app=APP):
     """Returns a mutex handle, or None if another copy of the app is already running."""
-    h = kernel32.CreateMutexW(None, False, f"Local\\{APP}_SingleInstance")
+    h = kernel32.CreateMutexW(None, False, f"Local\\{app}_SingleInstance")
     if not h:
         return None
     if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
@@ -249,9 +262,15 @@ class APPBARDATA(ctypes.Structure):
 ABM_GETTASKBARPOS, ABE_BOTTOM = 5, 3
 
 
-def tray_geometry():
-    """(system tray left edge, taskbar top, taskbar height), or None when the widget should hide:
-    the taskbar is not at the bottom (side/top), or an auto-hidden taskbar is currently collapsed."""
+def window_title(app):
+    """Every widget titles its window like this, so sibling widgets can line up next to each other."""
+    return f"LimitTray:{app}"
+
+
+def tray_geometry(anchors=()):
+    """(left edge to stand next to, taskbar top, taskbar height), or None when the widget should hide:
+    the taskbar is not at the bottom (side/top), or an auto-hidden taskbar is currently collapsed.
+    The left edge is the first visible sibling widget from `anchors`, else the system tray."""
     tb = user32.FindWindowW("Shell_TrayWnd", None)
     if not tb:
         return None
@@ -263,6 +282,11 @@ def tray_geometry():
         return None  # auto-hide: the taskbar slid down off the screen
     tn = user32.FindWindowExW(tb, None, "TrayNotifyWnd", None)
     left = win_rect(tn)[0] if tn else r - 300
+    for a in anchors:
+        h = user32.FindWindowW(None, window_title(a))
+        if h and user32.IsWindowVisible(h):
+            left = win_rect(h)[0]
+            break
     return left, t, b - t
 
 
@@ -281,18 +305,23 @@ def fullscreen_app_active():
 # ---------- app ----------
 
 class App:
-    def __init__(self):
+    def __init__(self, name="Claude", app=APP, fetch=None, color=CLAUDE_ORANGE, anchors=(), script=None,
+                 mascot=MASCOT, palette=None):
+        self.mascot, self.palette = mascot, palette
+        self.name, self.app, self.color, self.anchors = name, app, color, tuple(anchors)
+        self.fetch, self.script = fetch or fetch_usage, script
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(2)
         except Exception:
             pass
-        self.settings = load_settings()
+        self.settings = load_settings(app)
         self.data, self.error = None, None
         self.wake = threading.Event()
         self.closing = False
         self._visible = True
 
         self.root = tk.Tk()
+        self.root.title(window_title(app))
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
         self.bg = (32, 32, 32)  # updated from a screen sample
@@ -304,14 +333,14 @@ class App:
         self.photo = None
 
         self.limit_var = tk.StringVar(value=self.settings["limit"])
-        self.auto_var = tk.BooleanVar(value=STARTUP_LNK.exists())
+        self.auto_var = tk.BooleanVar(value=startup_lnk(app).exists())
         self.menu = tk.Menu(self.root, tearoff=0)
         for k, name in LIMITS.items():
             self.menu.add_radiobutton(label=name, value=k, variable=self.limit_var, command=self.pick)
         self.menu.add_separator()
         self.menu.add_command(label="Refresh now", command=self.wake.set)
         self.menu.add_checkbutton(label="Start with Windows", variable=self.auto_var,
-                                  command=lambda: set_autostart(self.auto_var.get()))
+                                  command=lambda: set_autostart(self.auto_var.get(), self.app, self.script))
         self.menu.add_command(label="Quit", command=self.close)
 
         self.tip = None
@@ -334,7 +363,7 @@ class App:
 
     def pick(self):
         self.settings["limit"] = self.limit_var.get()
-        save_settings(self.settings)
+        save_settings(self.app, self.settings)
         self.redraw()
 
     def tip_text(self):
@@ -343,9 +372,11 @@ class App:
             r = remaining(self.data, k)
             if r is not None:
                 lines.append(f"{name}: {r}% left  ·  {reset_text(self.data, k)}")
+        if (self.data or {}).get("note"):
+            lines.append(self.data["note"])
         if self.error:
             lines.append(self.error)
-        return "Claude\n" + "\n".join(lines or ["Loading…"])
+        return f"{self.name}\n" +"\n".join(lines or ["Loading…"])
 
     def show_tip(self, _e=None):
         self.hide_tip()
@@ -368,7 +399,7 @@ class App:
             self.tip = None
 
     def redraw(self):
-        geo = tray_geometry()
+        geo = tray_geometry(self.anchors)
         if not geo:
             return  # taskbar hidden / not at the bottom - keep_on_taskbar hides the widget
         left, top, height = geo
@@ -378,7 +409,7 @@ class App:
         else:
             text = f"{pct}%" if pct is not None else "–"
         self.bg = taskbar_color(left, top)
-        img = render(text, pct, height, self.bg)
+        img = render(text, pct, height, self.bg, self.color, self.mascot, self.palette)
         # background (taskbar color) -> transparent; text edges stay anti-aliased against the taskbar color
         rgba = img.convert("RGBA")
         key_rgb = tuple(int(self.key[i:i + 2], 16) for i in (1, 3, 5))
@@ -392,7 +423,7 @@ class App:
         a collapsed (auto-hidden) taskbar, or a side/top taskbar - never float over the screen."""
         if self.closing:
             return
-        geo = tray_geometry()
+        geo = tray_geometry(self.anchors)
         if fullscreen_app_active() or not geo:
             if self._visible:
                 self.hide_tip()
@@ -427,7 +458,7 @@ class App:
     def poll_loop(self):
         backoff = POLL_ERR
         while not self.closing:
-            data, err, retry = fetch_usage()
+            data, err, retry = self.fetch()
             if data is not None:
                 backoff, wait = POLL_ERR, POLL_OK
             else:

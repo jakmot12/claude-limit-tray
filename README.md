@@ -2,12 +2,12 @@
 
 # Claude Limit Tray
 
-**Your remaining Claude Code usage limit right on the Windows taskbar — just like the battery percentage.**
+**Your remaining Claude Code and OpenAI Codex usage limits right on the Windows taskbar — just like the battery percentage.**
 
 <p>
-  <img src="taskbar.png" alt="Claude Limit Tray on the Windows 11 taskbar next to the battery icon" />
+  <img src="taskbar.png" alt="Codex and Claude widgets on the Windows 11 taskbar next to the system tray" />
   <br />
-  <sub>On the Windows 11 taskbar, right next to the system tray and battery icon.</sub>
+  <sub>Codex (blue) and Claude (orange) on the Windows 11 taskbar, right next to the system tray.</sub>
 </p>
 
 <p>
@@ -26,7 +26,7 @@
 
 ---
 
-A tiny, single-file Windows taskbar widget that displays a pixel-art Claude mascot and your remaining usage percentage next to the system tray — no Electron, no background bloat, just one Python script.
+A tiny Windows taskbar widget that displays a pixel-art mascot and your remaining usage percentage next to the system tray — no Electron, no background bloat, just plain Python scripts. One widget for **Claude Code**, an optional second one for **OpenAI Codex**; they line up next to each other automatically.
 
 ## Features
 
@@ -49,6 +49,7 @@ A tiny, single-file Windows taskbar widget that displays a pixel-art Claude masc
 - **Windows 10 or 11** (bottom taskbar on primary monitor)
 - **Python 3.10+**
 - **[Claude Code](https://claude.com/claude-code)** installed and signed in (Pro or Max plan)
+- *Optional:* **[Codex](https://openai.com/codex)** (CLI or app, ChatGPT plan) for the Codex widget
 
 ## Quick Start
 
@@ -57,7 +58,18 @@ git clone https://github.com/jakmot12/claude-limit-tray.git
 cd claude-limit-tray
 python -m pip install -r requirements.txt
 pythonw claude_limit_tray.py
+pythonw codex_limit_tray.py   # optional: the Codex widget
 ```
+
+Each widget has its own right-click menu, including its own **Start with Windows** toggle.
+
+## Codex widget
+
+[`codex_limit_tray.py`](codex_limit_tray.py) shows a blue cloud-terminal mascot with your remaining Codex 5-hour / weekly limit. It works fully **offline**: Codex itself records your rate limits in its session logs (`%USERPROFILE%\.codex\sessions\**ollout-*.jsonl`) after every turn, and the widget reads the latest entry.
+
+- The value reflects your **last Codex use** — the tooltip says when that was. Once a window's reset time passes, it shows 100% again.
+- It never touches `.codexuth.json` and makes **no network requests**.
+- Respects `CODEX_HOME` if you moved the Codex folder.
 
 ## Privacy & Security
 
@@ -65,13 +77,14 @@ pythonw claude_limit_tray.py
 - **Direct HTTPS only** — sends the token exclusively to `https://api.anthropic.com/api/oauth/usage` with certificate verification and an honest `User-Agent` (`claude-limit-tray`). Zero third-party servers, zero telemetry.
 - **Does not consume usage** — polling only reads your quota counter; it does not send prompts or invoke any model.
 - **Local-only color sampling** — periodically samples a tiny 2 px strip of your taskbar in memory to blend font edges cleanly with your wallpaper. Nothing is ever saved or transmitted.
-- **Minimal footprint** — stores only `%APPDATA%\ClaudeLimitTray\settings.json` (selected limit) and, if enabled, a Startup shortcut. The entire app is a single readable file: [`claude_limit_tray.py`](claude_limit_tray.py).
+- **Codex widget is local-only** — it only reads Codex's own session logs; no tokens, no network.
+- **Minimal footprint** — stores only `%APPDATA%\ClaudeLimitTray\settings.json` / `%APPDATA%\CodexLimitTray\settings.json` (selected limit) and, if enabled, a Startup shortcut. Two small readable files: [`claude_limit_tray.py`](claude_limit_tray.py) and [`codex_limit_tray.py`](codex_limit_tray.py).
 
 > [!WARNING]
 > **Never share your `.credentials.json` file with anyone** — it grants full access to your Claude account.
 
 > [!NOTE]
-> This is an unofficial tool not affiliated with Anthropic. It uses the same undocumented OAuth usage endpoint as Claude Code's `/usage` command, which may change without notice.
+> This is an unofficial tool not affiliated with Anthropic or OpenAI. It uses the same undocumented OAuth usage endpoint as Claude Code's `/usage` command, which may change without notice.
 
 ## License
 
