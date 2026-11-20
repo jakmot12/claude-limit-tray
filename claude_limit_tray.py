@@ -1,7 +1,8 @@
-"""Claude Limit Tray - okienko na pasku zadan obok zasobnika: ludek + ile zostalo limitu Claude'a (jak bateria).
+"""Claude Limit Tray - a tiny widget on the Windows taskbar next to the system tray:
+a pixel mascot + how much of your Claude usage limit is left (like the battery percentage).
 
-Nieoficjalne narzedzie, niezwiazane z Anthropic. Token Claude Code jest tylko odczytywany lokalnie
-i wysylany wylacznie do api.anthropic.com przez HTTPS.
+Unofficial tool, not affiliated with Anthropic. The Claude Code token is only read locally
+and sent exclusively to api.anthropic.com over HTTPS.
 """
 import ctypes
 import json
@@ -25,22 +26,22 @@ SETTINGS = Path(os.environ["APPDATA"]) / APP / "settings.json"
 STARTUP_LNK = Path(os.environ["APPDATA"]) / r"Microsoft\Windows\Start Menu\Programs\Startup" / f"{APP}.lnk"
 
 POLL_OK, POLL_ERR, MAX_BACKOFF = 180, 30, 900
-LIMITS = {"five_hour": "5 godzin", "seven_day": "Tydzień"}
-DAYS = ["pon", "wt", "śr", "czw", "pt", "sob", "nd"]
+LIMITS = {"five_hour": "5 hours", "seven_day": "Week"}
+DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 NO_WINDOW = 0x08000000
-GAP = 8  # odstep od zasobnika w px
-# ---------- dane ----------
+GAP = 8  # gap between the widget and the system tray, in px
+# ---------- data ----------
 
-# Uczciwie przedstawiamy sie wlasna nazwa (nie podszywamy sie pod Claude Code).
-UA = "claude-limit-tray/1.1 (+https://github.com/jakmot12/claude-limit-tray)"
+# Identify honestly with our own name (do not impersonate Claude Code).
+UA = "claude-limit-tray/1.2 (+https://github.com/jakmot12/claude-limit-tray)"
 
 
 def fetch_usage():
-    """Zwraca (dane, blad, retry_after)."""
+    """Returns (data, error, retry_after)."""
     try:
         token = json.loads(CREDS.read_text(encoding="utf-8"))["claudeAiOauth"]["accessToken"]
     except Exception:
-        return None, "Brak logowania Claude Code", None
+        return None, "Not signed in to Claude Code", None
     try:
         r = requests.get(USAGE_URL, timeout=10, headers={
             "Authorization": f"Bearer {token}",
@@ -48,19 +49,19 @@ def fetch_usage():
             "User-Agent": UA,
         })
     except requests.RequestException:
-        return None, "Brak połączenia", None
+        return None, "No connection", None
     if r.status_code == 401:
-        return None, "Otwórz Claude Code, żeby odświeżyć logowanie", None
+        return None, "Open Claude Code to refresh your sign-in", None
     if r.status_code == 429:
         ra = r.headers.get("Retry-After", "")
-        return None, "Za dużo zapytań, czekam", int(ra) if ra.isdigit() else None
+        return None, "Too many requests, waiting", int(ra) if ra.isdigit() else None
     if not r.ok:
-        return None, f"Błąd serwera {r.status_code}", None
+        return None, f"Server error {r.status_code}", None
     try:
         data = r.json()
     except ValueError:
-        return None, "Niepoprawna odpowiedź serwera", None
-    return (data, None, None) if isinstance(data, dict) else (None, "Niepoprawna odpowiedź serwera", None)
+        return None, "Invalid server response", None
+    return (data, None, None) if isinstance(data, dict) else (None, "Invalid server response", None)
 
 
 def remaining(data, key):
@@ -80,20 +81,20 @@ def reset_text(data, key):
         return ""
     secs = int((t - datetime.now(timezone.utc)).total_seconds())
     if secs <= 0:
-        return "reset teraz"
+        return "resets now"
     if secs < 60:
-        return "reset za <1m"
+        return "resets in <1m"
     if secs < 3600:
-        return f"reset za {secs // 60}m"
+        return f"resets in {secs // 60}m"
     if secs < 86400:
-        return f"reset za {secs // 3600}h {secs % 3600 // 60}m"
+        return f"resets in {secs // 3600}h {secs % 3600 // 60}m"
     lt = t.astimezone()
-    return f"reset {DAYS[lt.weekday()]} {lt:%H:%M}"
+    return f"resets {DAYS[lt.weekday()]} {lt:%H:%M}"
 
-# ---------- wyglad ----------
+# ---------- look ----------
 
-# Pikselowy ludek: szeroki, oczy-szczeliny, raczki, 4 nozki.
-# 20x12 px - tyle co ikonka baterii na pasku (rysowane 1:1, bez skalowania).
+# Pixel mascot: wide body, slit eyes, little arms, 4 legs.
+# 20x12 px - the size of the battery icon on the taskbar (drawn 1:1, no scaling).
 MASCOT = [
     "..################..",
     "..################..",
@@ -117,11 +118,12 @@ def level_color(pct):
         return (217, 69, 59)
     if pct < 30:
         return (232, 176, 74)
-    return (217, 119, 87)  # pomaranczowy Claude
+    return (217, 119, 87)  # Claude orange
 
 
 def taskbar_color(tray_left, top):
-    """Prawdziwy kolor paska (jest przezroczysty, wiec zalezy od tapety) - probka z gornej krawedzi paska nad widgetem."""
+    """Real taskbar color (it is translucent, so it depends on the wallpaper) - sampled from the
+    top edge of the taskbar above the widget."""
     from PIL import ImageGrab
     try:
         x2 = max(20, tray_left - GAP)
@@ -139,7 +141,7 @@ def is_light(rgb):
 
 
 def font(size):
-    """Segoe UI Variable - ta sama czcionka co procent baterii w Windows 11."""
+    """Segoe UI Variable - the same font Windows 11 uses for the battery percentage."""
     try:
         f = ImageFont.truetype("SegUIVar.ttf", size)
         axes = f.get_variation_axes()
@@ -153,8 +155,8 @@ def font(size):
 
 
 def render(text, pct, height, bg):
-    """Jak bateria: ikonka 20x12 skalowana do DPI, odstep 4 px, procent czcionka 12 px; wysrodkowane w pionie."""
-    dpi = max(1.0, height / 48)  # plynne skalowanie (takze dla 125% i 150% DPI)
+    """Like the battery: 20x12 icon scaled to DPI, 4 px gap, 12 px percentage text; vertically centered."""
+    dpi = max(1.0, height / 48)  # smooth scaling (also for 125% and 150% DPI)
     mw, mh = round(20 * dpi), round(12 * dpi)
     f = font(max(10, round(12 * dpi)))
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
@@ -162,7 +164,7 @@ def render(text, pct, height, bg):
     tx = mw + round(4 * dpi)
     img = Image.new("RGB", (tx + (tr - tl) + 1, height), bg)
     d = ImageDraw.Draw(img)
-    oy = (height - mh) // 2  # jak ikonka baterii: wiersze 18-29 przy pasku 48 px
+    oy = (height - mh) // 2  # like the battery icon: rows 18-29 on a 48 px taskbar
     color = level_color(pct)
     mascot = Image.new("RGBA", (20, 12), (0, 0, 0, 0))
     md = ImageDraw.Draw(mascot)
@@ -173,11 +175,11 @@ def render(text, pct, height, bg):
     if (mw, mh) != (20, 12):
         mascot = mascot.resize((mw, mh), Image.Resampling.NEAREST)
     img.paste(mascot, (0, oy), mascot)
-    # zawsze bialy - tak jak procent baterii na pasku (swiadomy wybor autora, nie zalezy od jasnosci paska)
+    # always white, like the battery percentage (intentional design choice, independent of taskbar brightness)
     d.text((tx - tl, height // 2 + round(4 * dpi)), text, font=f, fill=(255, 255, 255), anchor="ls")
     return img
 
-# ---------- ustawienia / autostart ----------
+# ---------- settings / autostart ----------
 
 def load_settings():
     try:
@@ -202,7 +204,7 @@ def set_autostart(on):
     if not pyw.exists():
         pyw = Path(sys.executable)
     script = Path(__file__).resolve()
-    # sciezki ida przez zmienne srodowiskowe, nie sa wklejane w tekst polecenia (brak wstrzykniecia)
+    # paths are passed via environment variables, never pasted into the command text (no injection)
     env = dict(os.environ, CLT_LNK=str(STARTUP_LNK), CLT_PYW=str(pyw),
                CLT_ARGS=f'"{script}"', CLT_DIR=str(script.parent))
     ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:CLT_LNK);"
@@ -211,7 +213,7 @@ def set_autostart(on):
     subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps],
                    env=env, creationflags=NO_WINDOW)
 
-# ---------- pasek zadan (Win32) ----------
+# ---------- taskbar (Win32) ----------
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -223,7 +225,7 @@ ERROR_ALREADY_EXISTS = 183
 
 
 def acquire_single_instance():
-    """Zwraca uchwyt muteksu albo None, jesli druga kopia aplikacji juz dziala."""
+    """Returns a mutex handle, or None if another copy of the app is already running."""
     h = kernel32.CreateMutexW(None, False, f"Local\\{APP}_SingleInstance")
     if not h:
         return None
@@ -248,8 +250,8 @@ ABM_GETTASKBARPOS, ABE_BOTTOM = 5, 3
 
 
 def tray_geometry():
-    """(lewa krawedz zasobnika, gora paska, wysokosc paska) albo None, gdy widget ma byc schowany:
-    pasek nie na dole ekranu (bok/gora) albo automatycznie ukryty pasek jest akurat schowany."""
+    """(system tray left edge, taskbar top, taskbar height), or None when the widget should hide:
+    the taskbar is not at the bottom (side/top), or an auto-hidden taskbar is currently collapsed."""
     tb = user32.FindWindowW("Shell_TrayWnd", None)
     if not tb:
         return None
@@ -258,14 +260,14 @@ def tray_geometry():
         return None
     l, t, r, b = win_rect(tb)
     if b - t <= 0 or t > user32.GetSystemMetrics(1) - (b - t) // 2:
-        return None  # auto-ukrywanie: pasek zjechal w dol poza ekran
+        return None  # auto-hide: the taskbar slid down off the screen
     tn = user32.FindWindowExW(tb, None, "TrayNotifyWnd", None)
     left = win_rect(tn)[0] if tn else r - 300
     return left, t, b - t
 
 
 def fullscreen_app_active():
-    """Nie rysuj nad grami / filmami na pelnym ekranie."""
+    """Do not draw over fullscreen games / videos."""
     h = user32.GetForegroundWindow()
     if not h:
         return False
@@ -276,7 +278,7 @@ def fullscreen_app_active():
     l, t, r, b = win_rect(h)
     return l <= 0 and t <= 0 and r >= user32.GetSystemMetrics(0) and b >= user32.GetSystemMetrics(1)
 
-# ---------- aplikacja ----------
+# ---------- app ----------
 
 class App:
     def __init__(self):
@@ -293,8 +295,8 @@ class App:
         self.root = tk.Tk()
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
-        self.bg = (32, 32, 32)  # aktualizowane probka z ekranu
-        self.key = "#010203"  # kolor przezroczysty
+        self.bg = (32, 32, 32)  # updated from a screen sample
+        self.key = "#010203"  # transparent color key
         self.root.configure(bg=self.key)
         self.root.attributes("-transparentcolor", self.key)
         self.label = tk.Label(self.root, bg=self.key, bd=0)
@@ -307,10 +309,10 @@ class App:
         for k, name in LIMITS.items():
             self.menu.add_radiobutton(label=name, value=k, variable=self.limit_var, command=self.pick)
         self.menu.add_separator()
-        self.menu.add_command(label="Odśwież teraz", command=self.wake.set)
-        self.menu.add_checkbutton(label="Uruchamiaj z Windowsem", variable=self.auto_var,
+        self.menu.add_command(label="Refresh now", command=self.wake.set)
+        self.menu.add_checkbutton(label="Start with Windows", variable=self.auto_var,
                                   command=lambda: set_autostart(self.auto_var.get()))
-        self.menu.add_command(label="Zamknij", command=self.close)
+        self.menu.add_command(label="Quit", command=self.close)
 
         self.tip = None
         self.label.bind("<Button-3>", self.show_menu)
@@ -340,10 +342,10 @@ class App:
         for k, name in LIMITS.items():
             r = remaining(self.data, k)
             if r is not None:
-                lines.append(f"{name}: zostało {r}%  ·  {reset_text(self.data, k)}")
+                lines.append(f"{name}: {r}% left  ·  {reset_text(self.data, k)}")
         if self.error:
             lines.append(self.error)
-        return "Claude\n" + "\n".join(lines or ["Ładowanie…"])
+        return "Claude\n" + "\n".join(lines or ["Loading…"])
 
     def show_tip(self, _e=None):
         self.hide_tip()
@@ -368,7 +370,7 @@ class App:
     def redraw(self):
         geo = tray_geometry()
         if not geo:
-            return  # pasek schowany / nie na dole - keep_on_taskbar ukrywa widget
+            return  # taskbar hidden / not at the bottom - keep_on_taskbar hides the widget
         left, top, height = geo
         pct = remaining(self.data, self.settings["limit"])
         if self.data is None:
@@ -377,7 +379,7 @@ class App:
             text = f"{pct}%" if pct is not None else "–"
         self.bg = taskbar_color(left, top)
         img = render(text, pct, height, self.bg)
-        # tlo (kolor paska) -> przezroczyste; krawedzie tekstu zostaja wygladzone na kolor paska
+        # background (taskbar color) -> transparent; text edges stay anti-aliased against the taskbar color
         rgba = img.convert("RGBA")
         key_rgb = tuple(int(self.key[i:i + 2], 16) for i in (1, 3, 5))
         rgba.putdata([key_rgb + (255,) if p[:3] == self.bg else p for p in rgba.getdata()])
@@ -386,8 +388,8 @@ class App:
         self.root.geometry(f"{img.width}x{height}+{left - img.width - GAP}+{top}")
 
     def keep_on_taskbar(self):
-        """Co sekunde: pozycja przy zasobniku, na wierzchu paska; schowany przy pelnym ekranie,
-        schowanym (auto-ukrywanym) pasku albo pasku z boku / u gory - nigdy nie wisi nad ekranem."""
+        """Every second: stick to the system tray and stay on top of the taskbar; hide over fullscreen apps,
+        a collapsed (auto-hidden) taskbar, or a side/top taskbar - never float over the screen."""
         if self.closing:
             return
         geo = tray_geometry()
@@ -407,10 +409,10 @@ class App:
             if moved or (self._ticks % 5 == 0 and
                          sum(abs(a - b) for a, b in zip(taskbar_color(geo[0], geo[1]), self.bg)) > 24):
                 self._geo = geo
-                self.redraw()  # przesuniety zasobnik albo zmieniona tapeta
+                self.redraw()  # system tray moved or wallpaper changed
         self.root.after(1000, self.keep_on_taskbar)
 
-    # --- dane ---
+    # --- data ---
     def apply_result(self, data, err):
         if self.closing:
             return

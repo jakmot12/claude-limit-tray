@@ -42,9 +42,7 @@ A tiny, single-file Windows taskbar widget that displays a pixel-art Claude masc
 | :--- | :--- |
 | **Hover** | Show both 5-hour and 7-day remaining limits with reset times |
 | **Left-click** | Refresh usage immediately |
-| **Right-click** | Switch limit (`5h` / `7d`), refresh, toggle **Start with Windows**, or quit |
-
-> The app's menu and tooltip are currently in **Polish** (`5 godzin` = 5 hours, `Tydzień` = week, `Odśwież teraz` = refresh now, `Uruchamiaj z Windowsem` = start with Windows, `Zamknij` = quit).
+| **Right-click** | Switch limit (**5 hours** / **Week**), **Refresh now**, toggle **Start with Windows**, or **Quit** |
 
 ## Requirements
 
