@@ -117,10 +117,12 @@ def level_color(pct):
 
 
 def taskbar_color(tray_left, top):
-    """Prawdziwy kolor paska (jest przezroczysty, wiec zalezy od tapety) - probka z ekranu obok widgetu."""
+    """Prawdziwy kolor paska (jest przezroczysty, wiec zalezy od tapety) - probka z gornej krawedzi paska nad widgetem."""
     from PIL import ImageGrab
     try:
-        strip = ImageGrab.grab(bbox=(tray_left - 460, top + 2, tray_left - 360, top + 4)).convert("RGB")
+        x2 = max(20, tray_left - GAP)
+        x1 = max(0, x2 - 100)
+        strip = ImageGrab.grab(bbox=(x1, top + 2, x2, top + 4)).convert("RGB")
         px = sorted(strip.getdata(), key=sum)
         return px[len(px) // 2]
     except Exception:
@@ -147,22 +149,28 @@ def font(size):
 
 
 def render(text, pct, height, bg):
-    """Jak bateria: ikonka 20x12 rysowana 1:1, odstep 4 px, procent czcionka 12 px; wysrodkowane w pionie."""
-    scale = max(1, round(height / 48))  # przy skali Windows 200% wszystko x2
-    mw, mh = 20 * scale, 12 * scale
-    f = font(12 * scale)
+    """Jak bateria: ikonka 20x12 skalowana do DPI, odstep 4 px, procent czcionka 12 px; wysrodkowane w pionie."""
+    dpi = max(1.0, height / 48)  # plynne skalowanie (takze dla 125% i 150% DPI)
+    mw, mh = round(20 * dpi), round(12 * dpi)
+    f = font(max(10, round(12 * dpi)))
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     tl, _, tr, _ = probe.textbbox((0, 0), text, font=f, anchor="ls")
-    tx = mw + 4 * scale
+    tx = mw + round(4 * dpi)
     img = Image.new("RGB", (tx + (tr - tl) + 1, height), bg)
     d = ImageDraw.Draw(img)
-    oy = height // 2 - 6 * scale  # jak ikonka baterii: wiersze 17-28 przy pasku 48 px
+    oy = (height - mh) // 2  # jak ikonka baterii: wiersze 18-29 przy pasku 48 px
     color = level_color(pct)
+    mascot = Image.new("RGBA", (20, 12), (0, 0, 0, 0))
+    md = ImageDraw.Draw(mascot)
     for y, row in enumerate(MASCOT):
         for x, ch in enumerate(row):
             if ch == "#":
-                d.rectangle([x * scale, oy + y * scale, (x + 1) * scale - 1, oy + (y + 1) * scale - 1], fill=color)
-    d.text((tx - tl, height // 2 + 4 * scale), text, font=f, fill=(255, 255, 255), anchor="ls")
+                md.point((x, y), fill=color + (255,))
+    if (mw, mh) != (20, 12):
+        mascot = mascot.resize((mw, mh), Image.Resampling.NEAREST)
+    img.paste(mascot, (0, oy), mascot)
+    fg = (24, 24, 24) if is_light(bg) else (255, 255, 255)
+    d.text((tx - tl, height // 2 + round(4 * dpi)), text, font=f, fill=fg, anchor="ls")
     return img
 
 # ---------- ustawienia / autostart ----------
@@ -200,6 +208,23 @@ def set_autostart(on):
 # ---------- pasek zadan (Win32) ----------
 
 user32 = ctypes.windll.user32
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+kernel32.CreateMutexW.restype = wintypes.HANDLE
+kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+kernel32.CloseHandle.restype = wintypes.BOOL
+ERROR_ALREADY_EXISTS = 183
+
+
+def acquire_single_instance():
+    """Zwraca uchwyt muteksu albo None, jesli druga kopia aplikacji juz dziala."""
+    h = kernel32.CreateMutexW(None, False, f"Local\\{APP}_SingleInstance")
+    if not h:
+        return None
+    if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
+        kernel32.CloseHandle(h)
+        return None
+    return h
 
 
 def win_rect(h):
@@ -256,6 +281,8 @@ class App:
         self.settings = load_settings()
         self.data, self.error = None, None
         self.wake = threading.Event()
+        self.closing = False
+        self._visible = True
 
         self.root = tk.Tk()
         self.root.overrideredirect(True)
@@ -277,7 +304,7 @@ class App:
         self.menu.add_command(label="Odśwież teraz", command=self.wake.set)
         self.menu.add_checkbutton(label="Uruchamiaj z Windowsem", variable=self.auto_var,
                                   command=lambda: set_autostart(self.auto_var.get()))
-        self.menu.add_command(label="Zamknij", command=self.root.destroy)
+        self.menu.add_command(label="Zamknij", command=self.close)
 
         self.tip = None
         self.label.bind("<Button-3>", lambda e: self.menu.tk_popup(e.x_root, e.y_root))
@@ -286,6 +313,12 @@ class App:
         self.label.bind("<Leave>", self.hide_tip)
 
     # --- UI ---
+    def close(self):
+        self.closing = True
+        self.wake.set()
+        self.hide_tip()
+        self.root.destroy()
+
     def pick(self):
         self.settings["limit"] = self.limit_var.get()
         save_settings(self.settings)
@@ -306,7 +339,10 @@ class App:
         self.tip = tk.Toplevel(self.root)
         self.tip.overrideredirect(True)
         self.tip.attributes("-topmost", True)
-        tk.Label(self.tip, text=self.tip_text(), justify="left", bg="#2b2b2b", fg="white",
+        light = is_light(self.bg)
+        tip_bg, tip_fg, tip_bd = ("#f3f3f3", "#181818", "#d0d0d0") if light else ("#2b2b2b", "white", "#454545")
+        tk.Label(self.tip, text=self.tip_text(), justify="left", bg=tip_bg, fg=tip_fg,
+                 highlightthickness=1, highlightbackground=tip_bd,
                  font=("Segoe UI", 10), padx=10, pady=6).pack()
         self.tip.update_idletasks()
         x = self.root.winfo_x() + self.root.winfo_width() - self.tip.winfo_width()
@@ -341,34 +377,55 @@ class App:
     def keep_on_taskbar(self):
         """Co sekunde: pozycja przy zasobniku, na wierzchu paska; schowany przy pelnym ekranie,
         schowanym (auto-ukrywanym) pasku albo pasku z boku / u gory - nigdy nie wisi nad ekranem."""
+        if self.closing:
+            return
         geo = tray_geometry()
         if fullscreen_app_active() or not geo:
-            self.hide_tip()
-            self.root.withdraw()
+            if self._visible:
+                self.hide_tip()
+                self.root.withdraw()
+                self._visible = False
         else:
-            self.root.deiconify()
+            if not self._visible:
+                self.root.deiconify()
+                self._visible = True
             self.root.attributes("-topmost", True)
             self.root.lift()
             self._ticks = getattr(self, "_ticks", 0) + 1
-            moved = geo and geo != getattr(self, "_geo", None)
-            if moved or (geo and self._ticks % 5 == 0 and
+            moved = geo != getattr(self, "_geo", None)
+            if moved or (self._ticks % 5 == 0 and
                          sum(abs(a - b) for a, b in zip(taskbar_color(geo[0], geo[1]), self.bg)) > 24):
                 self._geo = geo
                 self.redraw()  # przesuniety zasobnik albo zmieniona tapeta
         self.root.after(1000, self.keep_on_taskbar)
 
     # --- dane ---
+    def apply_result(self, data, err):
+        if self.closing:
+            return
+        if data is not None:
+            self.data, self.error = data, None
+        else:
+            self.error = err
+        self.redraw()
+        if self.tip:
+            self.show_tip()
+
     def poll_loop(self):
         backoff = POLL_ERR
-        while True:
+        while not self.closing:
             data, err, retry = fetch_usage()
             if data is not None:
-                self.data, self.error, backoff, wait = data, None, POLL_ERR, POLL_OK
+                backoff, wait = POLL_ERR, POLL_OK
             else:
-                self.error = err
                 wait = retry or backoff
                 backoff = min(backoff * 2, MAX_BACKOFF)
-            self.root.after(0, self.redraw)
+            if self.closing:
+                return
+            try:
+                self.root.after(0, self.apply_result, data, err)
+            except (RuntimeError, tk.TclError):
+                return
             self.wake.wait(min(wait, MAX_BACKOFF))
             self.wake.clear()
 
@@ -380,4 +437,10 @@ class App:
 
 
 if __name__ == "__main__":
-    App().run()
+    _mutex = acquire_single_instance()
+    if _mutex is None:
+        sys.exit(0)
+    try:
+        App().run()
+    finally:
+        kernel32.CloseHandle(_mutex)
