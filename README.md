@@ -5,9 +5,9 @@
 **Your remaining Claude Code usage limit right on the Windows taskbar — just like the battery percentage.**
 
 <p>
-  <img src="preview.png" alt="Claude Limit Tray states: 87%, 25%, 5% and error" />
+  <img src="preview.png" width="568" alt="Claude Limit Tray states: 87%, 25%, 5% and error" />
   <br />
-  <sub>Rendered at 4× scale. On the taskbar it is the size of the battery icon.</sub>
+  <sub>Enlarged preview. On the taskbar it is the size of the battery icon.</sub>
 </p>
 
 <p>
