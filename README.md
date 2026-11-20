@@ -1,22 +1,48 @@
+<div align="center">
+
 # Claude Limit Tray
 
-Pokazuje na pasku zadań Windows, obok zasobnika, **ile zostało limitu Claude'a**: tak jak procent baterii. Mały pikselowy ludek i obok procent.
+**Your remaining Claude Code usage limit right on the Windows taskbar — just like the battery percentage.**
 
-![Claude Limit Tray na pasku zadań](preview.png)
+<p>
+  <img src="preview.png" alt="Claude Limit Tray on the Windows taskbar" />
+</p>
 
-- Do wyboru limit **5-godzinny** albo **tygodniowy** (prawy przycisk → menu)
-- Najechanie myszką: oba limity i czas do resetu
-- Kolor ludka: pomarańczowy → żółty (< 30%) → czerwony (< 10%)
-- Chowa się, gdy gra albo film jest na pełnym ekranie, gdy automatycznie ukrywany pasek jest schowany oraz gdy pasek jest z boku lub u góry ekranu (obsługiwany jest tylko pasek na dole głównego monitora)
-- Opcja „Uruchamiaj z Windowsem”
+<p>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?style=flat-square" alt="Windows 10/11" />
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License" />
+</p>
 
-## Wymagania
+</div>
 
-- Windows 10/11
-- Python 3.10+
-- Zainstalowany i zalogowany [Claude Code](https://claude.com/claude-code) (plan Pro/Max), bo aplikacja korzysta z jego logowania
+---
 
-## Instalacja
+A tiny, single-file Windows taskbar widget that displays a pixel-art Claude mascot and your remaining usage percentage next to the system tray — no Electron, no background bloat, just one Python script.
+
+## Features
+
+- **Battery-style taskbar indicator** — crisp pixel-art mascot + remaining percentage rendered with `Segoe UI Variable` and smooth DPI scaling (100%–200%).
+- **5-hour & 7-day limits** — switch which window is shown on the taskbar via the right-click menu; hover to see **both limits** and exact reset countdowns.
+- **At-a-glance color coding** — Claude orange (`≥ 30%`) → yellow (`< 30%`) → red (`< 10%`).
+- **Stays out of your way** — automatically hides during fullscreen games/videos, when an auto-hidden taskbar collapses, or when the taskbar isn't at the bottom of the primary monitor.
+- **Start with Windows** — optional one-click Startup shortcut in the context menu, plus single-instance protection so you never launch duplicates.
+
+## Controls
+
+| Action | Behavior |
+| :--- | :--- |
+| **Hover** | Show both 5-hour and 7-day remaining limits with reset times |
+| **Left-click** | Refresh usage immediately |
+| **Right-click** | Switch limit (`5h` / `7d`), refresh, toggle **Start with Windows**, or quit |
+
+## Requirements
+
+- **Windows 10 or 11** (bottom taskbar on primary monitor)
+- **Python 3.10+**
+- **[Claude Code](https://claude.com/claude-code)** installed and signed in (Pro or Max plan)
+
+## Quick Start
 
 ```powershell
 git clone https://github.com/jakmot12/claude-limit-tray.git
@@ -25,22 +51,20 @@ python -m pip install -r requirements.txt
 pythonw claude_limit_tray.py
 ```
 
-## Bezpieczeństwo i prywatność
+## Privacy & Security
 
-- Aplikacja **tylko odczytuje** token z `%USERPROFILE%\.claude\.credentials.json` (plik Claude Code). Nie zapisuje go, nie loguje i nie odświeża.
-- Aplikacja przedstawia się serwerowi własną nazwą (`claude-limit-tray`), nie podszywa się pod Claude Code, i nie uruchamia żadnych zewnętrznych programów (poza PowerShellem przy włączaniu autostartu).
-- Sprawdzanie limitu **nie zużywa** Twojego limitu Claude'a. To tylko odczyt licznika, a nie rozmowa z modelem.
-- Token jest wysyłany **wyłącznie** do `https://api.anthropic.com/api/oauth/usage` (HTTPS z weryfikacją certyfikatu). Żadnych innych serwerów, żadnej telemetrii.
-- Żeby dobrać kolor do paska zadań, aplikacja co kilka sekund odczytuje kolor paska kilku pikseli tuż obok siebie. Ten fragment ekranu nie jest nigdzie zapisywany ani wysyłany.
-- Lokalnie zapisuje tylko `%APPDATA%\ClaudeLimitTray\settings.json` (wybrany limit) i, jeśli włączysz autostart, skrót w folderze Autostart.
-- Cały kod to jeden plik: `claude_limit_tray.py`. Przeczytaj go przed uruchomieniem.
+- **Read-only credentials** — reads your existing Claude Code OAuth token from `%USERPROFILE%\.claude\.credentials.json`. It never writes, logs, or refreshes the token.
+- **Direct HTTPS only** — sends the token exclusively to `https://api.anthropic.com/api/oauth/usage` with certificate verification and an honest `User-Agent` (`claude-limit-tray`). Zero third-party servers, zero telemetry.
+- **Does not consume usage** — polling only reads your quota counter; it does not send prompts or invoke any model.
+- **Local-only color sampling** — periodically samples a tiny 2 px strip of your taskbar in memory to blend font edges cleanly with your wallpaper. Nothing is ever saved or transmitted.
+- **Minimal footprint** — stores only `%APPDATA%\ClaudeLimitTray\settings.json` (selected limit) and, if enabled, a Startup shortcut. The entire app is a single readable file: [`claude_limit_tray.py`](claude_limit_tray.py).
 
-**Nigdy nikomu nie wysyłaj swojego pliku `.credentials.json`**: daje pełny dostęp do Twojego konta Claude.
+> [!WARNING]
+> **Never share your `.credentials.json` file with anyone** — it grants full access to your Claude account.
 
-## Uwaga
+> [!NOTE]
+> This is an unofficial tool not affiliated with Anthropic. It uses the same undocumented OAuth usage endpoint as Claude Code's `/usage` command, which may change without notice.
 
-To nieoficjalne narzędzie, niezwiązane z Anthropic. Korzysta z nieudokumentowanego endpointu, tego samego co komenda `/usage` w Claude Code, więc może przestać działać, gdy Anthropic go zmieni.
+## License
 
-## Licencja
-
-MIT
+[MIT](LICENSE)
